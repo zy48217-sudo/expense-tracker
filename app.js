@@ -117,7 +117,22 @@ function simpleHash(str) {
   return (hash >>> 0).toString(16).padStart(8, '0') + '_' + salted.length;
 }
 
-// ===== Auth (使用 localStorage 持久化) =====
+// ===== Cookie helpers =====
+// Cookie 是 iOS Safari ↔ PWA 之间唯一共享的存储，用作跨环境 session 桥接
+function setCookie(name, value, days) {
+  const d = new Date();
+  d.setTime(d.getTime() + (days || 365) * 86400000);
+  document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + d.toUTCString() + ';path=/;SameSite=Lax;Secure';
+}
+function getCookie(name) {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+function deleteCookie(name) {
+  document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;SameSite=Lax;Secure';
+}
+
+// ===== Auth（Cookie + localStorage + IndexedDB 三重持久化）=====
 const auth = {
   currentUser: null,
 
@@ -151,13 +166,16 @@ const auth = {
 
   setSession(user) {
     this.currentUser = user;
-    // 双重持久化：localStorage + IndexedDB，确保 iOS PWA 杀后台后不丢失
+    // 三重持久化：localStorage + IndexedDB + Cookie
+    // Cookie 是 iOS Safari ↔ PWA 唯一共享的存储，解决"浏览器注册后 PWA 还得再注册"的问题
     localStorage.setItem('et_user', JSON.stringify(user));
     db.setSetting('session_user', user.email);
+    setCookie('et_sid', user.email, 365);
   },
 
   getSession() {
     if (this.currentUser) return this.currentUser;
+    // 主力查 localStorage
     const saved = localStorage.getItem('et_user');
     if (saved) {
       try {
@@ -171,12 +189,29 @@ const auth = {
   },
 
   async restoreSessionFromDB() {
+    // 优先查 localStorage（最快）
+    const ls = localStorage.getItem('et_user');
+    if (ls) {
+      try { this.currentUser = JSON.parse(ls); return this.currentUser; } catch (e) {}
+    }
+    // 然后查 Cookie（iOS Safari ↔ PWA 桥接）
+    const cookieEmail = getCookie('et_sid');
+    if (cookieEmail) {
+      const user = await db.getUser(cookieEmail);
+      if (user) {
+        this.currentUser = user;
+        localStorage.setItem('et_user', JSON.stringify(user));
+        return user;
+      }
+    }
+    // 最后查 IndexedDB（兜底）
     const sessionEmail = await db.getSetting('session_user');
     if (sessionEmail) {
       const user = await db.getUser(sessionEmail);
       if (user) {
         this.currentUser = user;
         localStorage.setItem('et_user', JSON.stringify(user));
+        setCookie('et_sid', user.email, 365);
         return user;
       }
     }
@@ -187,6 +222,7 @@ const auth = {
     this.currentUser = null;
     localStorage.removeItem('et_user');
     db.setSetting('session_user', null);
+    deleteCookie('et_sid');
   },
 
   async updateProfile(nickname, avatar) {
