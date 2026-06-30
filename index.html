@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#10B981">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="记账本">
+  <meta name="description" content="个人记账 - 每日消费记录与统计">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="stylesheet" href="style.css">
+  <title>记账本</title>
+</head>
+<body>
+  <div id="app">
+    <!-- 登录/注册页 -->
+    <div id="auth-screen" class="screen active">
+      <div class="auth-container">
+        <div class="auth-logo">
+          <svg width="72" height="72" viewBox="0 0 72 72" fill="none">
+            <rect width="72" height="72" rx="20" fill="#10B981"/>
+            <text x="36" y="48" font-size="36" text-anchor="middle" fill="white" font-family="sans-serif">记</text>
+          </svg>
+        </div>
+        <h1 class="auth-title">记账本</h1>
+        <p class="auth-subtitle">轻松记录每一笔消费</p>
+        <form id="auth-form" class="auth-form">
+          <div class="input-group">
+            <label for="auth-email">邮箱</label>
+            <input type="email" id="auth-email" placeholder="请输入邮箱" required autocomplete="email">
+          </div>
+          <div class="input-group">
+            <label for="auth-password">密码</label>
+            <input type="password" id="auth-password" placeholder="请输入密码" required autocomplete="current-password" minlength="6">
+          </div>
+          <button type="submit" class="btn-primary" id="auth-submit">登录</button>
+          <p class="auth-switch" id="auth-switch">还没有账号？<span>注册</span></p>
+          <p class="auth-hint" id="auth-hint"></p>
+        </form>
+      </div>
+    </div>
+
+    <!-- 主应用 -->
+    <div id="main-app" class="main-app hidden">
+      <!-- 首页 -->
+      <div id="page-home" class="page active">
+        <div class="content">
+          <!-- 今日消费卡片 -->
+          <div class="card today-card">
+            <div class="today-top">
+              <div class="today-col">
+                <div class="today-label">今日消费</div>
+                <div class="today-amount" id="today-amount">¥0.00</div>
+              </div>
+              <div class="today-col remaining-col">
+                <div class="today-label">今日剩余</div>
+                <div class="remaining-amount" id="remaining-amount">--</div>
+              </div>
+            </div>
+            <div class="budget-bar-wrapper">
+              <div class="budget-info">
+                <span id="budget-text">未设置每日额度</span>
+                <span id="budget-percent"></span>
+              </div>
+              <div class="budget-bar">
+                <div class="budget-bar-fill" id="budget-bar-fill"></div>
+              </div>
+              <div class="budget-warning hidden" id="budget-warning">
+                <span>⚠️ 已超过今日额度！</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 快速记账按钮 -->
+          <button class="fab" id="fab-add">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            <span>记一笔</span>
+          </button>
+
+          <!-- 最近记录 -->
+          <div class="section-header">
+            <h2>最近记录</h2>
+            <span class="section-count" id="recent-count"></span>
+          </div>
+          <div id="recent-list" class="expense-list">
+            <div class="empty-state">
+              <div class="empty-icon">📝</div>
+              <p>还没有记录，点击上方按钮开始记账</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 统计页 -->
+      <div id="page-stats" class="page">
+        <div class="content">
+          <!-- 时间范围切换 -->
+          <div class="tabs" id="stats-tabs">
+            <button class="tab active" data-range="week">本周</button>
+            <button class="tab" data-range="month">本月</button>
+          </div>
+
+          <!-- 总消费 -->
+          <div class="card stats-summary">
+            <div class="stats-summary-label" id="stats-period-label">本周消费</div>
+            <div class="stats-summary-amount" id="stats-total">¥0.00</div>
+            <div class="stats-summary-detail">
+              <div>
+                <span class="detail-label">笔数</span>
+                <span class="detail-value" id="stats-count">0</span>
+              </div>
+              <div>
+                <span class="detail-label">日均</span>
+                <span class="detail-value" id="stats-avg">¥0.00</span>
+              </div>
+              <div>
+                <span class="detail-label">最高</span>
+                <span class="detail-value" id="stats-max">¥0.00</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 分类占比 -->
+          <div class="section-header">
+            <h2>分类占比</h2>
+          </div>
+          <div class="card chart-card">
+            <div id="category-chart" class="category-chart">
+              <div class="empty-state small">
+                <p>暂无数据</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 每日趋势 -->
+          <div class="section-header">
+            <h2>每日趋势</h2>
+          </div>
+          <div class="card chart-card">
+            <div id="trend-chart" class="trend-chart">
+              <div class="empty-state small">
+                <p>暂无数据</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 设置页 -->
+      <div id="page-settings" class="page">
+        <div class="content">
+          <!-- 账户信息 -->
+          <div class="card account-card">
+            <div class="account-avatar" id="settings-avatar"></div>
+            <div class="account-info">
+              <div class="account-nickname" id="settings-nickname"></div>
+              <div class="account-email-display" id="settings-email"></div>
+              <div class="account-since" id="settings-since"></div>
+            </div>
+            <button class="edit-profile-btn" id="edit-profile-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- 额度设置 -->
+          <div class="section-header">
+            <h2>额度设置</h2>
+          </div>
+          <div class="card settings-card">
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-label">每日消费额度</span>
+                <span class="setting-desc">超过此金额将提醒你</span>
+              </div>
+              <div class="setting-control">
+                <span class="currency-prefix">¥</span>
+                <input type="number" id="daily-limit-input" placeholder="0" min="0" step="0.01">
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-label">每月消费额度</span>
+                <span class="setting-desc">月度消费参考值</span>
+              </div>
+              <div class="setting-control">
+                <span class="currency-prefix">¥</span>
+                <input type="number" id="monthly-limit-input" placeholder="0" min="0" step="0.01">
+              </div>
+            </div>
+            <button class="btn-secondary" id="save-limits">保存额度</button>
+          </div>
+
+          <!-- 分类管理 -->
+          <div class="section-header">
+            <h2>消费分类</h2>
+          </div>
+          <div class="card settings-card">
+            <div id="category-list" class="category-list-settings"></div>
+          </div>
+
+          <!-- 数据管理 -->
+          <div class="section-header">
+            <h2>数据管理</h2>
+          </div>
+          <div class="card settings-card">
+            <button class="btn-secondary" id="export-data">导出数据 (JSON)</button>
+            <button class="btn-danger" id="clear-data">清空所有记录</button>
+          </div>
+
+          <!-- 退出登录 -->
+          <button class="btn-danger logout-btn" id="logout-btn">退出登录</button>
+        </div>
+      </div>
+
+      <!-- 底部导航 -->
+      <nav class="bottom-nav">
+        <button class="nav-item active" data-page="home">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+          <span>首页</span>
+        </button>
+        <button class="nav-item" data-page="stats">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="20" x2="18" y2="10"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+          <span>统计</span>
+        </button>
+        <button class="nav-item" data-page="settings">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          <span>设置</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- 添加支出弹窗 -->
+    <div id="add-modal" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>记一笔</h2>
+          <button class="modal-close" id="modal-close">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <form id="expense-form" class="expense-form">
+          <!-- 金额输入 -->
+          <div class="amount-input-wrapper">
+            <span class="amount-currency">¥</span>
+            <input type="number" id="expense-amount" placeholder="0.00" step="0.01" min="0.01" required>
+          </div>
+
+          <!-- 分类选择 -->
+          <div class="form-label">选择分类</div>
+          <div class="category-grid" id="category-grid"></div>
+
+          <!-- 备注 -->
+          <div class="form-label">备注（可选）</div>
+          <input type="text" id="expense-note" placeholder="例如：午餐、地铁" maxlength="50">
+
+          <!-- 日期 -->
+          <div class="form-label">日期</div>
+          <input type="date" id="expense-date" required>
+
+          <button type="submit" class="btn-primary btn-full">确认记录</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- 编辑个人信息弹窗 -->
+    <div id="profile-modal" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>编辑个人信息</h2>
+          <button class="modal-close" id="profile-modal-close">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="expense-form">
+          <!-- 头像选择 -->
+          <div class="form-label">选择头像</div>
+          <div class="avatar-grid" id="avatar-grid"></div>
+
+          <!-- 昵称输入 -->
+          <div class="form-label">昵称</div>
+          <input type="text" id="nickname-input" class="nickname-input" placeholder="输入你的昵称" maxlength="20">
+
+          <button type="button" class="btn-primary btn-full" id="save-profile">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 提示 Toast -->
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
