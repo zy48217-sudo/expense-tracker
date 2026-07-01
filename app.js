@@ -262,6 +262,16 @@ function todayStr() {
   return fmtDate(new Date());
 }
 
+function fmtDateLabel(dateStr) {
+  const today = todayStr();
+  const yesterday = fmtDate(new Date(Date.now() - 86400000));
+  if (dateStr === today) return '今天';
+  if (dateStr === yesterday) return '昨天';
+  const dt = new Date(dateStr + 'T00:00:00');
+  const weekdays = ['周日','周一','周二','周三','周四','周五','周六'];
+  return (dt.getMonth()+1) + '月' + dt.getDate() + '日 ' + weekdays[dt.getDay()];
+}
+
 function getWeekRange() {
   const now = new Date();
   const day = now.getDay() || 7;
@@ -471,8 +481,8 @@ function renderHome() {
     barFill.classList.remove('over');
   }
 
-  // Recent expenses
-  const recent = state.expenses.slice(0, 20);
+  // Recent expenses — 按日期分组
+  const recent = state.expenses.slice(0, 30);
   const listEl = document.getElementById('recent-list');
   document.getElementById('recent-count').textContent = state.expenses.length + ' 笔记录';
 
@@ -481,20 +491,36 @@ function renderHome() {
     return;
   }
 
-  listEl.innerHTML = recent.map(e => {
-    const cat = getCategoryById(e.categoryId);
-    return `
-      <div class="expense-item" data-id="${e.id}">
-        <div class="expense-icon" style="background:${cat.color}22">${cat.icon}</div>
-        <div class="expense-detail">
-          <div class="expense-category">${cat.name}</div>
-          ${e.note ? `<div class="expense-note">${escapeHtml(e.note)}</div>` : ''}
-          <div class="expense-time">${e.date}${e.time ? ' ' + e.time : ''}</div>
+  // 按 date 分组，保持倒序
+  const groups = {};
+  const groupOrder = [];
+  recent.forEach(e => {
+    if (!groups[e.date]) { groups[e.date] = []; groupOrder.push(e.date); }
+    groups[e.date].push(e);
+  });
+
+  let html = '';
+  groupOrder.forEach(date => {
+    const dayTotal = groups[date].reduce((s, e) => s + e.amount, 0);
+    html += `<div class="date-group">`;
+    html += `<div class="date-group-header"><span class="date-group-label">${fmtDateLabel(date)}</span><span class="date-group-total">${fmt(dayTotal)}</span></div>`;
+    groups[date].forEach(e => {
+      const cat = getCategoryById(e.categoryId);
+      html += `
+        <div class="expense-item" data-id="${e.id}">
+          <div class="expense-icon" style="background:${cat.color}22">${cat.icon}</div>
+          <div class="expense-detail">
+            <div class="expense-category">${cat.name}</div>
+            ${e.note ? `<div class="expense-note">${escapeHtml(e.note)}</div>` : ''}
+            ${e.time ? `<div class="expense-time">${e.time}</div>` : ''}
+          </div>
+          <div class="expense-amount">${fmt(e.amount)}</div>
         </div>
-        <div class="expense-amount">${fmt(e.amount)}</div>
-      </div>
-    `;
-  }).join('');
+      `;
+    });
+    html += `</div>`;
+  });
+  listEl.innerHTML = html;
 
   listEl.querySelectorAll('.expense-item').forEach(item => {
     item.addEventListener('click', async () => {
