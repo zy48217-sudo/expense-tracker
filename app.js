@@ -594,7 +594,7 @@ function renderStats() {
     </div>
   `).join('');
 
-  // Daily trend
+  // Daily trend — SVG bar chart with trend line + area fill
   const trendChart = document.getElementById('trend-chart');
   const todayDateStr = todayStr();
 
@@ -607,29 +607,103 @@ function renderStats() {
   }
 
   const maxDaily = Math.max(...Object.values(dailyTotals), 1);
+  const barCount = days.length;
+  const chartH = 120;
+  const barW = range === 'week' ? 26 : 15;
+  const gap = range === 'week' ? 40 : 27;
+  const marginL = 14;
+  const marginB = 18;
+  const baseline = chartH + marginB;
 
-  let trendHtml = '';
-  for (const d of days) {
+  const getBarColor = (ratio, isToday) => {
+    if (isToday) return '#F59E0B';
+    if (ratio > 0.7) return '#F97316';
+    if (ratio > 0.35) return '#F59E0B';
+    return '#10B981';
+  };
+
+  let bars = '';
+  let pts = [];
+  let dots = '';
+  let labels = '';
+  let values = '';
+
+  for (let i = 0; i < days.length; i++) {
+    const d = days[i];
     const ds = fmtDate(d);
     const amt = dailyTotals[ds] || 0;
-    const heightPct = (amt / maxDaily) * 100;
+    const ratio = amt / maxDaily;
+    const barH = Math.max(ratio * chartH, amt > 0 ? 6 : 0);
+    const x = marginL + i * gap;
+    const y = chartH - barH;
+    const cx = x + barW / 2;
+    const cy = y + marginB;
     const isToday = ds === todayDateStr;
+    const color = getBarColor(ratio, isToday);
+
+    // Bar with rounded top
+    bars += `<rect x="${x}" y="${cy}" width="${barW}" height="${barH}" rx="${barW / 3}" fill="${color}" class="trend-svg-bar"/>`;
+
+    // Point for trend line (top-center of bar, or baseline if zero)
+    pts.push(`${cx},${cy}`);
+
+    // Dot only for days with actual spending
+    if (amt > 0) {
+      dots += `<circle cx="${cx}" cy="${cy}" r="3.5" fill="#10B981" class="trend-svg-dot"/>`;
+    }
+
+    // Value label above bar
+    if (amt > 0) {
+      const val = fmt(amt).replace('¥', '');
+      const fontSize = range === 'week' ? '10' : '8';
+      values += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="${fontSize}" fill="#374151" font-weight="600">${val}</text>`;
+    }
+
+    // X-axis label
     const label = range === 'week'
-      ? ['日','一','二','三','四','五','六'][d.getDay()]
+      ? ['日', '一', '二', '三', '四', '五', '六'][d.getDay()]
       : d.getDate().toString();
-    const showValue = amt > 0 ? fmt(amt).replace('¥','') : '';
-
-    const showLabel = range === 'week' || d.getDate() === 1 || d.getDate() % 5 === 0 || isToday;
-
-    trendHtml += `
-      <div class="trend-bar-wrapper">
-        ${showValue ? `<div class="trend-bar-value">${showValue}</div>` : '<div class="trend-bar-value">&nbsp;</div>'}
-        <div class="trend-bar ${isToday ? 'today' : ''}" style="height:${Math.max(heightPct, 2)}%"></div>
-        <div class="trend-bar-label">${showLabel ? label : ''}</div>
-      </div>
-    `;
+    const showLabel = range === 'week' || d.getDate() === 1 || (d.getDate() - 1) % 5 === 0 || isToday;
+    if (showLabel) {
+      labels += `<text x="${cx}" y="${baseline + 16}" text-anchor="middle" font-size="10" fill="${isToday ? '#D97706' : '#9CA3AF'}" font-weight="${isToday ? '700' : '400'}">${label}</text>`;
+    }
   }
-  trendChart.innerHTML = trendHtml;
+
+  // Trend polyline connecting all bar tops
+  const linePath = `M${pts.join(' L')}`;
+  // Area fill path: line path + drop to baseline + back to start
+  const fillPath = `M${pts.join(' L')} L${pts[pts.length - 1].split(',')[0]},${baseline} L${pts[0].split(',')[0]},${baseline} Z`;
+
+  const totalW = marginL + barCount * gap;
+
+  trendChart.innerHTML = `
+    <div class="trend-svg-wrap${range === 'month' ? ' trend-svg-scroll' : ''}">
+      <svg viewBox="0 0 ${totalW} ${baseline + 28}" width="${totalW}" height="${baseline + 28}" class="trend-svg">
+        <defs>
+          <linearGradient id="areaGrad-${range}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#10B981" stop-opacity="0.28"/>
+            <stop offset="60%" stop-color="#10B981" stop-opacity="0.08"/>
+            <stop offset="100%" stop-color="#10B981" stop-opacity="0.01"/>
+          </linearGradient>
+        </defs>
+        <!-- Baseline -->
+        <line x1="${marginL}" y1="${baseline}" x2="${totalW - marginL}" y2="${baseline}" stroke="#E5E7EB" stroke-width="1"/>
+        <!-- Midline -->
+        <line x1="${marginL}" y1="${chartH / 2 + marginB}" x2="${totalW - marginL}" y2="${chartH / 2 + marginB}" stroke="#F3F4F6" stroke-width="1" stroke-dasharray="6,4"/>
+        <!-- Area fill -->
+        <path d="${fillPath}" fill="url(#areaGrad-${range})"/>
+        <!-- Bars -->
+        ${bars}
+        <!-- Trend line -->
+        <path d="${linePath}" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+        <!-- Dots -->
+        ${dots}
+        <!-- Values -->
+        ${values}
+        <!-- Labels -->
+        ${labels}
+      </svg>
+    </div>`;
 }
 
 // ===== Render: Settings =====
