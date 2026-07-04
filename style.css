@@ -556,15 +556,6 @@ body {
   to { transform: scaleY(1); }
 }
 
-/* Animate dots */
-.trend-svg-dot {
-  animation: dotPop 0.4s ease-out both;
-}
-@keyframes dotPop {
-  from { r: 0; opacity: 0; }
-  to { opacity: 1; }
-}
-
 /* ===== Settings ===== */
 .account-card {
   display: flex;
