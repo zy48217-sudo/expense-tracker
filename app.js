@@ -892,6 +892,83 @@ function exportData() {
   showToast('数据已导出', 'success');
 }
 
+// ===== Import Data =====
+function importData() {
+  document.getElementById('import-file').click();
+}
+
+async function handleImport(file) {
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+
+    // 校验格式
+    if (!data.expenses || !Array.isArray(data.expenses)) {
+      showToast('无效的数据文件：缺少消费记录', 'error');
+      return;
+    }
+
+    const user = auth.getSession();
+    let imported = 0;
+    let skipped = 0;
+
+    // 构建现有记录的指纹集合（用于去重）
+    const existingSet = new Set();
+    for (const e of state.expenses) {
+      const fp = [e.amount, e.date, e.categoryId, e.note || '', e.time || ''].join('|');
+      existingSet.add(fp);
+    }
+
+    // 逐条导入，跳过重复
+    for (const e of data.expenses) {
+      const fp = [e.amount, e.date, e.categoryId, e.note || '', e.time || ''].join('|');
+      if (existingSet.has(fp)) {
+        skipped++;
+        continue;
+      }
+      existingSet.add(fp);
+
+      const expense = {
+        userId: user.email,
+        amount: e.amount,
+        categoryId: e.categoryId,
+        note: e.note || '',
+        date: e.date,
+        time: e.time || '12:00',
+        createdAt: e.createdAt || new Date().toISOString(),
+      };
+      await db.addExpense(expense);
+      imported++;
+    }
+
+    // 合并设置（额度取较大值）
+    if (data.settings) {
+      if (data.settings.dailyLimit && data.settings.dailyLimit > state.settings.dailyLimit) {
+        await db.setSetting('dailyLimit_' + user.email, data.settings.dailyLimit);
+        state.settings.dailyLimit = data.settings.dailyLimit;
+      }
+      if (data.settings.monthlyLimit && data.settings.monthlyLimit > state.settings.monthlyLimit) {
+        await db.setSetting('monthlyLimit_' + user.email, data.settings.monthlyLimit);
+        state.settings.monthlyLimit = data.settings.monthlyLimit;
+      }
+    }
+
+    // 重新加载
+    await loadData();
+    renderHome();
+    renderSettings();
+
+    let msg = `导入完成：新增 ${imported} 条`;
+    if (skipped > 0) msg += `，跳过 ${skipped} 条重复`;
+    showToast(msg, 'success');
+  } catch (err) {
+    showToast('数据文件解析失败，请检查文件格式', 'error');
+    console.error('Import error:', err);
+  }
+  // 清掉 input，允许重复选同一个文件
+  document.getElementById('import-file').value = '';
+}
+
 // ===== Clear Data =====
 async function clearData() {
   if (!confirm('确定要清空所有记录吗？此操作不可撤销！')) return;
@@ -948,6 +1025,10 @@ async function init() {
   // Settings
   document.getElementById('save-limits').addEventListener('click', saveLimits);
   document.getElementById('export-data').addEventListener('click', exportData);
+  document.getElementById('import-data').addEventListener('click', importData);
+  document.getElementById('import-file').addEventListener('change', (e) => {
+    if (e.target.files && e.target.files[0]) handleImport(e.target.files[0]);
+  });
   document.getElementById('clear-data').addEventListener('click', clearData);
   document.getElementById('logout-btn').addEventListener('click', logout);
 
